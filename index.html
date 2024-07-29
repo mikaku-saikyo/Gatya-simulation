@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ガチャシミュレーション</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <h1>ガチャコンプリートシミュレーション</h1>
@@ -15,6 +16,7 @@
         <input type="submit" value="シミュレート">
     </form>
     <div id="result"></div>
+    <canvas id="histogram" width="400" height="200"></canvas>
 
     <script>
         document.getElementById('simulation-form').addEventListener('submit', function(event) {
@@ -23,6 +25,7 @@
             const p = parseInt(document.getElementById('p').value);
             const results = simulateGacha(n, p);
             document.getElementById('result').innerText = `結果: ${results.join(', ')}`;
+            updateHistogram(results);
         });
 
         function simulateGacha(n, p) {
@@ -42,6 +45,41 @@
                 results.push(simulateSingleGacha(n));
             }
             return results;
+        }
+
+        function updateHistogram(data) {
+            const ctx = document.getElementById('histogram').getContext('2d');
+            const histogram = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Array.from(new Set(data)),
+                    datasets: [{
+                        label: '試行回数',
+                        data: Array.from(new Set(data)).map(value => data.filter(item => item === value).length),
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '試行回数'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '回数'
+                            }
+                        }
+                    }
+                }
+            });
         }
     </script>
 </body>
