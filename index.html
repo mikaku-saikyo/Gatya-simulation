@@ -48,14 +48,23 @@
         }
 
         function updateHistogram(data) {
+            // ヒストグラムデータを整理
+            const frequency = {};
+            data.forEach(value => {
+                frequency[value] = (frequency[value] || 0) + 1;
+            });
+
+            const labels = Object.keys(frequency).map(Number).sort((a, b) => a - b);
+            const counts = labels.map(label => frequency[label]);
+
             const ctx = document.getElementById('histogram').getContext('2d');
-            const histogram = new Chart(ctx, {
+            new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: Array.from(new Set(data)),
+                    labels: labels,
                     datasets: [{
                         label: '試行回数',
-                        data: Array.from(new Set(data)).map(value => data.filter(item => item === value).length),
+                        data: counts,
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         borderColor: 'rgba(75, 192, 192, 1)',
                         borderWidth: 1
