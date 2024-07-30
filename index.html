@@ -57,10 +57,14 @@
             <form>
                 <label for="n">ガチャの種類 (n):</label>
                 <input type="number" id="n" name="n" required min="1"><br><br>
-                <label for="p">試行回数 (p):</label>
-                <input type="number" id="p" name="p" required min="1"><br><br>
+                <label for="x">試行回数 (x):</label>
+                <input type="number" id="x" name="x" required min="1"><br><br>
                 <input type="submit" value="シミュレート">
             </form>
+            <div id="expected-value-container">
+                <p>E = n * Σ[k=1..n] 1/k</p>
+                <p>期待値 (E): <span id="expected-value">-</span></p>
+            </div>
         </div>
 
         <!-- 統計結果 -->
@@ -138,14 +142,15 @@
         document.querySelector('#simulation-form form').addEventListener('submit', function(event) {
             event.preventDefault();
             const n = parseInt(document.getElementById('n').value);
-            const p = parseInt(document.getElementById('p').value);
-            results = simulateGacha(n, p);
+            const x = parseInt(document.getElementById('x').value);
+            results = simulateGacha(n, x);
             updateHistogram(results);
             updateStats(results);
+            updateExpectedValue(n);
             document.getElementById('download-btn').style.display = 'inline';
         });
 
-        function simulateGacha(n, p) {
+        function simulateGacha(n, x) {
             function simulateSingleGacha(n) {
                 const collected = new Set();
                 let attempts = 0;
@@ -158,7 +163,7 @@
             }
 
             const results = [];
-            for (let i = 0; i < p; i++) {
+            for (let i = 0; i < x; i++) {
                 results.push(simulateSingleGacha(n));
             }
             return results;
@@ -177,19 +182,16 @@
             const labels = Array.from({ length: maxValue - minValue + 1 }, (_, i) => i);
             const counts = labels.map(label => frequency[label] || 0);
 
+            // 統計量の計算
+            const meanValue = data.reduce((a, b) => a + b, 0) / data.length;
+            const medianValue = [...data].sort((a, b) => a - b)[Math.floor(data.length / 2)];
+            
             // 最頻値の計算
             const maxCount = Math.max(...counts);
             const mode = labels[counts.indexOf(maxCount)];
             
-            // 2番目に多い値を特定
-            let secondMode = null;
-            let secondMaxCount = 0;
-            for (const [key, value] of Object.entries(frequency)) {
-                if (value > secondMaxCount && value < maxCount) {
-                    secondMaxCount = value;
-                    secondMode = parseInt(key);
-                }
-            }
+            // 平均値に最も近い階級の特定
+            const closestToMean = labels.reduce((prev, curr) => Math.abs(curr - meanValue) < Math.abs(prev - meanValue) ? curr : prev, labels[0]);
 
             // ±1% の範囲
             const tolerance = Math.floor(maxValue * 0.01);
@@ -214,8 +216,10 @@
                         backgroundColor: labels.map(label => {
                             if (label === mode) {
                                 return 'rgba(255, 0, 0, 0.6)'; // 赤色（最頻値）
-                            } else if (label === secondMode) {
-                                return 'rgba(255, 165, 0, 0.6)'; // オレンジ色（2番目に多い値）
+                            } else if (label === medianValue) {
+                                return 'rgba(128, 0, 128, 0.6)'; // 紫色（中央値）
+                            } else if (label === closestToMean) {
+                                return 'rgba(0, 255, 0, 0.6)'; // 緑色（平均値に最も近い階級）
                             } else if (label >= lowerBound && label <= upperBound) {
                                 return 'rgba(255, 255, 0, 0.6)'; // 黄色（±1%）
                             } else {
@@ -225,8 +229,10 @@
                         borderColor: labels.map(label => {
                             if (label === mode) {
                                 return 'rgba(255, 0, 0, 1)'; // 赤色（最頻値）
-                            } else if (label === secondMode) {
-                                return 'rgba(255, 165, 0, 1)'; // オレンジ色（2番目に多い値）
+                            } else if (label === medianValue) {
+                                return 'rgba(128, 0, 128, 1)'; // 紫色（中央値）
+                            } else if (label === closestToMean) {
+                                return 'rgba(0, 255, 0, 1)'; // 緑色（平均値に最も近い階級）
                             } else if (label >= lowerBound && label <= upperBound) {
                                 return 'rgba(255, 255, 0, 1)'; // 黄色（±1%）
                             } else {
@@ -259,21 +265,25 @@
                             }
                         }
                     },
-                    zoom: {
+                    plugins: {
                         zoom: {
-                            wheel: {
-                                enabled: true
+                            zoom: {
+                                wheel: {
+                                    enabled: true
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                drag: {
+                                    enabled: true,
+                                    mode: 'x'
+                                },
+                                mode: 'x'
                             },
-                            pinch: {
-                                enabled: true
-                            },
-                            drag: {
-                                enabled: true
+                            pan: {
+                                enabled: true,
+                                mode: 'x'
                             }
-                        },
-                        pan: {
-                            enabled: true,
-                            mode: 'xy'
                         }
                     }
                 }
@@ -329,6 +339,15 @@
             document.getElementById('mode-plus-1-percent-count').textContent = modePlus1PercentCount;
             document.getElementById('second-mode-value').textContent = secondMode || '-';
             document.getElementById('second-mode-count').textContent = secondMaxCount || '-';
+        }
+
+        function updateExpectedValue(n) {
+            let harmonicSum = 0;
+            for (let k = 1; k <= n; k++) {
+                harmonicSum += 1 / k;
+            }
+            const expectedValue = n * harmonicSum;
+            document.getElementById('expected-value').textContent = expectedValue.toFixed(4);
         }
     </script>
 </body>
