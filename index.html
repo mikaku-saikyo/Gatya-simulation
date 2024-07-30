@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ガチャシミュレーション</title>
+    <title>自由研究発表用</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
     <style>
@@ -12,60 +11,43 @@
             font-family: Arial, sans-serif;
             padding: 20px;
         }
-
-        #simulation-container,
-        #histogram-container,
-        #download-container {
+        #simulation-container, #histogram-container, #download-container {
             margin-bottom: 20px;
         }
-
         #simulation-container {
             display: flex;
             justify-content: space-between;
         }
-
-        #simulation-form,
-        #stats-container {
+        #simulation-form, #stats-container {
             width: 45%;
         }
-
         #histogram-container {
             margin-top: 20px;
-            overflow-x: auto;
-            /* 横スクロールを可能にする */
+            overflow-x: auto; /* 横スクロールを可能にする */
         }
-
         #histogram {
-            width: 100%;
-            /* 横幅を100%に設定 */
+            width: 100%; /* 横幅を100%に設定 */
             height: 200px;
         }
-
         table {
             width: 100%;
             border-collapse: collapse;
         }
-
-        th,
-        td {
+        th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: center;
         }
-
         th {
             background-color: #f4f4f4;
         }
-
         #download-btn {
-            display: inline;
-            /* ボタンを表示 */
+            display: inline; /* ボタンを表示 */
         }
     </style>
 </head>
-
 <body>
-    <h1>ガチャコンプリートシミュレーション</h1>
+    <h1>ガチャコンプリートシミュレーション　みかく、ChatGPT</h1>
 
     <!-- シミュレーション設定と統計結果 -->
     <div id="simulation-container">
@@ -153,7 +135,7 @@
         let histogramChart = null;
         let results = [];
 
-        document.querySelector('#simulation-form form').addEventListener('submit', function (event) {
+        document.querySelector('#simulation-form form').addEventListener('submit', function(event) {
             event.preventDefault();
             const n = parseInt(document.getElementById('n').value);
             const p = parseInt(document.getElementById('p').value);
@@ -198,7 +180,7 @@
             // 最頻値の計算
             const maxCount = Math.max(...counts);
             const mode = labels[counts.indexOf(maxCount)];
-
+            
             // 2番目に多い値を特定
             let secondMode = null;
             let secondMaxCount = 0;
@@ -259,24 +241,39 @@
                     plugins: {
                         legend: {
                             display: false
-                        },
-                        zoom: {
-                            pan: {
-                                enabled: true,
-                                mode: 'x'
-                            },
-                            zoom: {
-                                enabled: true,
-                                mode: 'x'
-                            }
                         }
                     },
                     scales: {
                         x: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '試行回数'
+                            }
                         },
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '頻度'
+                            }
+                        }
+                    },
+                    zoom: {
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            drag: {
+                                enabled: true
+                            }
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'xy'
                         }
                     }
                 }
@@ -286,19 +283,26 @@
         function updateStats(data) {
             const minValue = Math.min(...data);
             const maxValue = Math.max(...data);
+            const meanValue = data.reduce((a, b) => a + b, 0) / data.length;
             const sortedData = [...data].sort((a, b) => a - b);
             const medianValue = sortedData[Math.floor(sortedData.length / 2)];
-            const meanValue = data.reduce((sum, value) => sum + value, 0) / data.length;
-
-            // ヒストグラムデータを整理
+            
+            // Frequency calculation
             const frequency = {};
             data.forEach(value => {
                 frequency[value] = (frequency[value] || 0) + 1;
             });
 
-            // 最頻値の計算
             const maxCount = Math.max(...Object.values(frequency));
-            const modeValue = parseInt(Object.keys(frequency).find(key => frequency[key] === maxCount));
+            const mode = parseInt(Object.keys(frequency).find(key => frequency[key] === maxCount));
+            
+            // ±1% の範囲
+            const tolerance = Math.floor(maxValue * 0.01);
+            const lowerBound = Math.max(0, mode - tolerance);
+            const upperBound = Math.min(maxValue, mode + tolerance);
+
+            const modeMinus1PercentCount = frequency[mode - tolerance] || 0;
+            const modePlus1PercentCount = frequency[mode + tolerance] || 0;
 
             // 2番目に多い値を特定
             let secondMode = null;
@@ -310,51 +314,22 @@
                 }
             }
 
-            // ±1% の範囲
-            const tolerance = Math.max(1, Math.floor(modeValue * 0.01)); // ±1% の範囲を修正
-            const modeMinusTolerance = Math.max(0, modeValue - tolerance);
-            const modePlusTolerance = modeValue + tolerance;
-
-            // 試行回数を計算する
-            const modeMinus1PercentCount = '-'; // ハイフンに設定
-            const modePlus1PercentCount = '-'; // ハイフンに設定
-
-            // 統計結果を更新
             document.getElementById('min-value').textContent = minValue;
-            document.getElementById('max-value').textContent = maxValue;
-            document.getElementById('mode-value').textContent = modeValue;
-            document.getElementById('median-value').textContent = medianValue;
-            document.getElementById('mean-value').textContent = meanValue.toFixed(2);
-            document.getElementById('mode-minus-1-percent').textContent = modeMinusTolerance;
-            document.getElementById('mode-plus-1-percent').textContent = modePlusTolerance;
-            document.getElementById('second-mode-value').textContent = secondMode !== null ? secondMode : '-';
-
-            // 試行回数を表示
             document.getElementById('min-count').textContent = frequency[minValue] || '-';
+            document.getElementById('max-value').textContent = maxValue;
             document.getElementById('max-count').textContent = frequency[maxValue] || '-';
-            document.getElementById('mode-count').textContent = frequency[modeValue] || '-';
+            document.getElementById('mean-value').textContent = meanValue.toFixed(2);
+            document.getElementById('median-value').textContent = medianValue;
             document.getElementById('median-count').textContent = frequency[medianValue] || '-';
-            document.getElementById('mean-count').textContent = '-'; // 平均値には試行回数は適用されない
+            document.getElementById('mode-value').textContent = mode;
+            document.getElementById('mode-count').textContent = maxCount;
+            document.getElementById('mode-minus-1-percent').textContent = mode - tolerance;
             document.getElementById('mode-minus-1-percent-count').textContent = modeMinus1PercentCount;
+            document.getElementById('mode-plus-1-percent').textContent = mode + tolerance;
             document.getElementById('mode-plus-1-percent-count').textContent = modePlus1PercentCount;
-            document.getElementById('second-mode-count').textContent = secondMode !== null ? frequency[secondMode] : '-';
+            document.getElementById('second-mode-value').textContent = secondMode || '-';
+            document.getElementById('second-mode-count').textContent = secondMaxCount || '-';
         }
-
-
-        document.getElementById('download-btn').addEventListener('click', function () {
-            const csvContent = "data:text/csv;charset=utf-8,"
-                + "試行回数\n"
-                + results.join("\n");
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "simulation_results.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
     </script>
 </body>
-
 </html>
