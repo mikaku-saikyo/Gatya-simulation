@@ -1,31 +1,166 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ガチャシミュレーション</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        #simulation-container,
+        #histogram-container,
+        #download-container {
+            margin-bottom: 20px;
+        }
+
+        #simulation-container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #simulation-form,
+        #stats-container {
+            width: 45%;
+        }
+
+        #histogram-container {
+            margin-top: 20px;
+            overflow-x: auto;
+            /* 横スクロールを可能にする */
+        }
+
+        #histogram {
+            width: 100%;
+            /* 横幅を100%に設定 */
+            height: 200px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        #download-btn {
+            display: inline;
+            /* ボタンを表示 */
+        }
+    </style>
 </head>
+
 <body>
     <h1>ガチャコンプリートシミュレーション</h1>
-    <form id="simulation-form">
-        <label for="n">ガチャの種類 (n):</label>
-        <input type="number" id="n" name="n" required min="1"><br><br>
-        <label for="p">試行回数 (p):</label>
-        <input type="number" id="p" name="p" required min="1"><br><br>
-        <input type="submit" value="シミュレート">
-    </form>
-    <div id="result"></div>
-    <canvas id="histogram" width="400" height="200"></canvas>
+
+    <!-- シミュレーション設定と統計結果 -->
+    <div id="simulation-container">
+        <!-- 変数の設定 -->
+        <div id="simulation-form">
+            <h2>シミュレーション設定</h2>
+            <form>
+                <label for="n">ガチャの種類 (n):</label>
+                <input type="number" id="n" name="n" required min="1"><br><br>
+                <label for="p">試行回数 (p):</label>
+                <input type="number" id="p" name="p" required min="1"><br><br>
+                <input type="submit" value="シミュレート">
+            </form>
+        </div>
+
+        <!-- 統計結果 -->
+        <div id="stats-container">
+            <h2>統計結果</h2>
+            <table id="stats-table">
+                <thead>
+                    <tr>
+                        <th>統計項目</th>
+                        <th>値</th>
+                        <th>試行回数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>最小値</td>
+                        <td id="min-value">-</td>
+                        <td id="min-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>最大値</td>
+                        <td id="max-value">-</td>
+                        <td id="max-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>最頻値</td>
+                        <td id="mode-value">-</td>
+                        <td id="mode-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>中央値</td>
+                        <td id="median-value">-</td>
+                        <td id="median-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>平均値</td>
+                        <td id="mean-value">-</td>
+                        <td id="mean-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>最頻値の-1%</td>
+                        <td id="mode-minus-1-percent">-</td>
+                        <td id="mode-minus-1-percent-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>最頻値の+1%</td>
+                        <td id="mode-plus-1-percent">-</td>
+                        <td id="mode-plus-1-percent-count">-</td>
+                    </tr>
+                    <tr>
+                        <td>次に多い値</td>
+                        <td id="second-mode-value">-</td>
+                        <td id="second-mode-count">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ヒストグラム -->
+    <div id="histogram-container">
+        <h2>ヒストグラム</h2>
+        <canvas id="histogram"></canvas>
+    </div>
+
+    <!-- ダウンロードボタン -->
+    <div id="download-container">
+        <button id="download-btn" style="display: none;">試行結果をダウンロード</button>
+    </div>
 
     <script>
-        document.getElementById('simulation-form').addEventListener('submit', function(event) {
+        let histogramChart = null;
+        let results = [];
+
+        document.querySelector('#simulation-form form').addEventListener('submit', function (event) {
             event.preventDefault();
             const n = parseInt(document.getElementById('n').value);
             const p = parseInt(document.getElementById('p').value);
-            const results = simulateGacha(n, p);
-            document.getElementById('result').innerText = `結果: ${results.join(', ')}`;
+            results = simulateGacha(n, p);
             updateHistogram(results);
+            updateStats(results);
+            document.getElementById('download-btn').style.display = 'inline';
         });
 
         function simulateGacha(n, p) {
@@ -54,42 +189,172 @@
                 frequency[value] = (frequency[value] || 0) + 1;
             });
 
-            const labels = Object.keys(frequency).map(Number).sort((a, b) => a - b);
-            const counts = labels.map(label => frequency[label]);
+            // 0 を含むすべての試行回数を含むようにする
+            const minValue = 0;
+            const maxValue = Math.max(...data, minValue);
+            const labels = Array.from({ length: maxValue - minValue + 1 }, (_, i) => i);
+            const counts = labels.map(label => frequency[label] || 0);
+
+            // 最頻値の計算
+            const maxCount = Math.max(...counts);
+            const mode = labels[counts.indexOf(maxCount)];
+
+            // 2番目に多い値を特定
+            let secondMode = null;
+            let secondMaxCount = 0;
+            for (const [key, value] of Object.entries(frequency)) {
+                if (value > secondMaxCount && value < maxCount) {
+                    secondMaxCount = value;
+                    secondMode = parseInt(key);
+                }
+            }
+
+            // ±1% の範囲
+            const tolerance = Math.floor(maxValue * 0.01);
+            const lowerBound = Math.max(0, mode - tolerance);
+            const upperBound = Math.min(maxValue, mode + tolerance);
 
             const ctx = document.getElementById('histogram').getContext('2d');
-            new Chart(ctx, {
+
+            // 既存のチャートインスタンスを破棄
+            if (histogramChart) {
+                histogramChart.destroy();
+            }
+
+            // 新しいチャートを作成
+            histogramChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
                         label: '試行回数',
                         data: counts,
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: labels.map(label => {
+                            if (label === mode) {
+                                return 'rgba(255, 0, 0, 0.6)'; // 赤色（最頻値）
+                            } else if (label === secondMode) {
+                                return 'rgba(255, 165, 0, 0.6)'; // オレンジ色（2番目に多い値）
+                            } else if (label >= lowerBound && label <= upperBound) {
+                                return 'rgba(255, 255, 0, 0.6)'; // 黄色（±1%）
+                            } else {
+                                return 'rgba(0, 0, 255, 0.6)'; // 青色（その他）
+                            }
+                        }),
+                        borderColor: labels.map(label => {
+                            if (label === mode) {
+                                return 'rgba(255, 0, 0, 1)'; // 赤色（最頻値）
+                            } else if (label === secondMode) {
+                                return 'rgba(255, 165, 0, 1)'; // オレンジ色（2番目に多い値）
+                            } else if (label >= lowerBound && label <= upperBound) {
+                                return 'rgba(255, 255, 0, 1)'; // 黄色（±1%）
+                            } else {
+                                return 'rgba(0, 0, 255, 1)'; // 青色（その他）
+                            }
+                        }),
                         borderWidth: 1
                     }]
                 },
                 options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x'
+                            },
+                            zoom: {
+                                enabled: true,
+                                mode: 'x'
+                            }
+                        }
+                    },
                     scales: {
                         x: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: '試行回数'
-                            }
+                            beginAtZero: true
                         },
                         y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: '回数'
-                            }
+                            beginAtZero: true
                         }
                     }
                 }
             });
         }
+
+        function updateStats(data) {
+            const minValue = Math.min(...data);
+            const maxValue = Math.max(...data);
+            const sortedData = [...data].sort((a, b) => a - b);
+            const medianValue = sortedData[Math.floor(sortedData.length / 2)];
+            const meanValue = data.reduce((sum, value) => sum + value, 0) / data.length;
+
+            // ヒストグラムデータを整理
+            const frequency = {};
+            data.forEach(value => {
+                frequency[value] = (frequency[value] || 0) + 1;
+            });
+
+            // 最頻値の計算
+            const maxCount = Math.max(...Object.values(frequency));
+            const modeValue = parseInt(Object.keys(frequency).find(key => frequency[key] === maxCount));
+
+            // 2番目に多い値を特定
+            let secondMode = null;
+            let secondMaxCount = 0;
+            for (const [key, value] of Object.entries(frequency)) {
+                if (value > secondMaxCount && value < maxCount) {
+                    secondMaxCount = value;
+                    secondMode = parseInt(key);
+                }
+            }
+
+            // ±1% の範囲
+            const tolerance = Math.max(1, Math.floor(modeValue * 0.01)); // ±1% の範囲を修正
+            const modeMinusTolerance = Math.max(0, modeValue - tolerance);
+            const modePlusTolerance = modeValue + tolerance;
+
+            // 試行回数を計算する
+            const modeMinus1PercentCount = '-'; // ハイフンに設定
+            const modePlus1PercentCount = '-'; // ハイフンに設定
+
+            // 統計結果を更新
+            document.getElementById('min-value').textContent = minValue;
+            document.getElementById('max-value').textContent = maxValue;
+            document.getElementById('mode-value').textContent = modeValue;
+            document.getElementById('median-value').textContent = medianValue;
+            document.getElementById('mean-value').textContent = meanValue.toFixed(2);
+            document.getElementById('mode-minus-1-percent').textContent = modeMinusTolerance;
+            document.getElementById('mode-plus-1-percent').textContent = modePlusTolerance;
+            document.getElementById('second-mode-value').textContent = secondMode !== null ? secondMode : '-';
+
+            // 試行回数を表示
+            document.getElementById('min-count').textContent = frequency[minValue] || '-';
+            document.getElementById('max-count').textContent = frequency[maxValue] || '-';
+            document.getElementById('mode-count').textContent = frequency[modeValue] || '-';
+            document.getElementById('median-count').textContent = frequency[medianValue] || '-';
+            document.getElementById('mean-count').textContent = '-'; // 平均値には試行回数は適用されない
+            document.getElementById('mode-minus-1-percent-count').textContent = modeMinus1PercentCount;
+            document.getElementById('mode-plus-1-percent-count').textContent = modePlus1PercentCount;
+            document.getElementById('second-mode-count').textContent = secondMode !== null ? frequency[secondMode] : '-';
+        }
+
+
+        document.getElementById('download-btn').addEventListener('click', function () {
+            const csvContent = "data:text/csv;charset=utf-8,"
+                + "試行回数\n"
+                + results.join("\n");
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "simulation_results.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
     </script>
 </body>
+
 </html>
